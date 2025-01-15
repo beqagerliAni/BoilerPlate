@@ -8,7 +8,7 @@
 
             if (_configuration == null) { throw new NotImplementedException(); }
 
-            string? connection =  _configuration.GetConnectionString(text);
+            string? connection =  _configuration[text];
 
             if (connection == null) { throw new Exception("connection not found"); }
 

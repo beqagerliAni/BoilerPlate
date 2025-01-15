@@ -4,11 +4,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
-using To_do_List.src.Modules.User.Command;
 using todolist.Helper.Auth.Service;
+using todolist.Helper.Configuration;
 using todolist.src.Modules.User.Repository;
 
 
@@ -24,51 +23,51 @@ builder.Services.AddControllers(config =>
     config.Filters.Add(new AuthorizeFilter(policy));
 
 });
+builder.Services.AddScoped<appDbcontext>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-string? connectionstring = builder.Configuration.GetConnectionString("AppDbConnectionString");
-Console.WriteLine(connectionstring);
 var serverVersion = new MySqlServerVersion(new Version(8, 0, 40));
+string? connectionstring = builder.Configuration["ConnectionStrings:AppDbConnectionString"];
+builder.Services.AddDbContext<appDbcontext>(options =>
+    options.UseMySql(connectionstring, serverVersion));
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 
 
-//add mediator :) 
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssemblies(Assembly.GetExecutingAssembly()));
 
-//builder.Services.AddMediatR();
-//builder.Services.AddMediatR();
+Configuration._configuration = builder.Configuration;
 
 builder.Services.AddOpenApi();
-var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
-builder.Services.AddAuthentication(
-    JwtBearerDefaults.AuthenticationScheme)
 
-.AddJwtBearer(options =>
-{
-
-    string? key = builder.Configuration.GetConnectionString("SecurityKey");
-    if (key == null) { throw new ArgumentNullException(nameof(key)); }
-
-    options.TokenValidationParameters = new TokenValidationParameters
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
-        ValidateIssuer = true,
-        ValidIssuer = builder.Configuration.GetConnectionString("Issuer"),
-        ValidateAudience = true,
-        ValidAudience = builder.Configuration.GetConnectionString("Audience")
-    };
+        string? key = builder.Configuration["SecurityKey"];
+        if (string.IsNullOrEmpty(key))
+        {
+            throw new ArgumentNullException(nameof(key), "SecurityKey is missing in appsettings.json");
+        }
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Audience"]
+        };
 });
+var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+        // https://localhost:5078/scalar/v1
     app.MapScalarApiReference();
 
 }
